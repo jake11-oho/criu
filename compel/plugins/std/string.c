@@ -74,6 +74,28 @@ done:
 	return blen - (s - buf);
 }
 
+static size_t __std_vprint_unsigned_long(char *buf, size_t blen, unsigned long num, char **ps)
+{
+	char *s = &buf[blen - 2];
+
+	buf[blen - 1] = '\0';
+
+	if (num == 0) {
+		*s = '0';
+		s--;
+	}
+
+	while (num > 0) {
+		*s = (num % 10) + '0';
+		s--;
+		num /= 10;
+	}
+
+	s++;
+	*ps = s;
+	return blen - (s - buf);
+}
+
 void std_vdprintf(int fd, const char *format, va_list args)
 {
 	const char *s = format;
@@ -106,6 +128,15 @@ void std_vdprintf(int fd, const char *format, va_list args)
 		case 'x':
 			__std_vprint_long_hex(buf, sizeof(buf), along ? va_arg(args, long) : (long)va_arg(args, int),
 					      &t);
+			std_dputs(fd, t);
+			break;
+		case 'u':
+			__std_vprint_unsigned_long(buf, sizeof(buf), along ? va_arg(args, unsigned long) : (unsigned long)va_arg(args, unsigned int), &t);
+			std_dputs(fd, t);
+			break;
+		case 'p':
+			std_dputs(fd, "0x");
+			__std_vprint_long_hex(buf, sizeof(buf), (unsigned long)va_arg(args, void *), &t);
 			std_dputs(fd, t);
 			break;
 		}
@@ -293,4 +324,112 @@ int std_strncmp(const char *cs, const char *ct, size_t count)
 			break;
 	}
 	return 0;
+}
+
+static int vsnprintf(char *buf, size_t size, const char *format, va_list args)
+{
+	const char *s = format;
+	size_t i = 0;
+
+	for (; *s != '\0'; s++) {
+		char tbuf[32], *t;
+		int along = 0;
+		size_t len = 0;
+
+		if (*s != '%') {
+			if (i < size)
+				buf[i] = *s;
+			i++;
+			continue;
+		}
+
+		s++;
+		if (*s == 'l') {
+			along = 1;
+			s++;
+			if (*s == 'l')
+				s++;
+		}
+
+		switch (*s) {
+		case 's':
+			for (t = va_arg(args, char *); *t; t++) {
+				if (i < size)
+					buf[i] = *t;
+				i++;
+			}
+			break;
+		case 'd':
+			len = __std_vprint_long(tbuf, sizeof(tbuf), along ? va_arg(args, long) : (long)va_arg(args, int), &t);
+			if (i < size)
+				memcpy(&buf[i], t, ((i + len - 1) < size) ?  (len - 1) : (size - i));
+			i += (len - 1);
+			break;
+		case 'x':
+			len = __std_vprint_long_hex(tbuf, sizeof(tbuf), along ? va_arg(args, long) : (long)va_arg(args, int), &t);
+			if (i < size)
+				memcpy(&buf[i], t, ((i + len - 1) < size) ?  (len - 1) : (size - i));
+			i += (len - 1);
+			break;
+		case 'u':
+			len = __std_vprint_unsigned_long(tbuf, sizeof(tbuf), along ? va_arg(args, unsigned long) : (unsigned long)va_arg(args, unsigned int), &t);
+			if (i < size)
+				memcpy(&buf[i], t, ((i + len - 1) < size) ?  (len - 1) : (size - i));
+			i += (len - 1);
+			break;
+		case 'p':
+			if (i < size)
+				buf[i] = '0';
+			i++;
+			if (i < size)
+				buf[i] = 'x';
+			i++;
+			len = __std_vprint_long_hex(tbuf, sizeof(tbuf), (unsigned long)va_arg(args, void *), &t);
+			if (i < size)
+				memcpy(&buf[i], t, ((i + len - 1) < size) ?  (len - 1) : (size - i));
+			i += (len - 1);
+			break;
+		}
+	}
+
+	if (i < size)
+		buf[i] = '\0';
+	else
+		buf[size - 1] = '\0';
+
+	return i;
+}
+
+int snprintf(char *buf, size_t size, const char *format, ...)
+{
+	int result;
+	va_list args;
+
+	va_start(args, format);
+	result = vsnprintf(buf, size, format, args);
+	va_end(args);
+	return result;
+}
+
+
+int strcmp(const char *cs, const char *ct)
+{
+    return std_strcmp(cs, ct);
+}
+
+// int fprintf(FILE *stream, const char *format, ...)
+// {
+// 	va_list args;
+// 	va_start(args, format);
+// 	std_vdprintf(stream->fd, format, args);
+// 	va_end(args);
+// 	return 0;
+// }
+
+// __thread
+int local_errno;
+
+int *__errno_location(void)
+{
+    return &local_errno;
 }

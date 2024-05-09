@@ -27,4 +27,14 @@ extern void *memcpy(void *dest, const void *src, size_t n);
 extern int memcmp(const void *s1, const void *s2, size_t n);
 extern void *memset(void *s, int c, size_t n);
 
+extern int snprintf(char *buf, size_t size, const char *format, ...);
+extern int strcmp(const char *s1, const char *s2);
+
+// does not return a valid value
+// extern int fprintf(FILE *stream, const char *format, ...);
+
+// does not guarantee thread-safe
+extern int *__errno_location (void) __THROW __attribute_const__;
+# define errno (*__errno_location ())
+
 #endif /* COMPEL_PLUGIN_STD_STRING_H__ */
